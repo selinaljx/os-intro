@@ -7,14 +7,16 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 
-void cmdln_interpreter(char *buffer);
-void builtin_cmd(char **token, int t_space);
-void process_creation(char **token, int t_space);
+/*GLOBAL VARIABLES*/
+char cwd[PATH_MAX+1]; //current directory
 
+void cmdln_interpreter(char *buffer);
+int builtin_cmd(char **token, int t_space);
+void process_creation(char **token, int t_space);
 
 int main (int argc, char *argv[]){
 	char buf[255]; /*input buffer*/
-	char cwd[PATH_MAX+1]; /*current directory*/
+	//char cwd[PATH_MAX+1]; /*current directory*/
 	
 	// get current directory
 	if (getcwd(cwd, PATH_MAX+1) == NULL){
@@ -33,6 +35,8 @@ int main (int argc, char *argv[]){
 	
 
 	cmdln_interpreter(buf);
+
+	printf("[3150 shell: %s]$ ", cwd);
 
 	return 0;
 }
@@ -75,13 +79,42 @@ void cmdln_interpreter(char *buffer){
 
 }
 
-void builtin_cmd(char **token, int t_space){
+int builtin_cmd(char **token, int t_space){
 	printf("[debug]builtin_cmd\n");	
 
 	int i;
 	for (i=0; i<t_space+1; i++){
 		printf("[debug(builtin_cmd)] token[%d] = %s\n", i, token[i]);
-	}	
+	}
+
+	printf("[debug(builtin_cmd)]number of argumnets %d\n", t_space-1);
+
+	if (strcmp(token[0], "cd")==0){
+		// # of arg = 1
+		if (t_space > 2){
+			printf("cd: wrong number of arguments\n");
+			return 1;
+		}
+		
+		if (chdir(token[1])!=-1){
+			getcwd(cwd, PATH_MAX+1);
+			printf("[debug(builtin_cmd)]Now it is %s\n", cwd);	
+		}else{
+			printf("%s: cannot change directory\n", token[1]);
+		}
+	}
+	
+	if (strcmp(token[0], "exit")==0){
+		// # of arg = 0
+		if (t_space > 1){
+			printf("exit: wrong number of arguments\n");
+			return 1;
+		}
+
+		exit(0);
+	} 
+
+	return 0;
 }
 
 void process_creation(char **token, int t_space){
@@ -100,10 +133,10 @@ void process_creation(char **token, int t_space){
 		setenv("PATH","/bin:/usr/bin:.",1);
 		execvp(token[0], token);
 		if (errno == ENOENT){
-			printf("[%s]: command not found\n", token[0]);
+			printf("%s: command not found\n", token[0]);
 			exit(-1);
 		}else{
-			printf("[%s]: unknown error\n", token[0]);
+			printf("%s: unknown error\n", token[0]);
 			exit(-1);
 		}
 	}
