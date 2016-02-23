@@ -1,11 +1,16 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <limits.h> //PATH_MAX
-#include <unistd.h> //getcwd()
-#include <string.h> //strtok()
+#include <limits.h>
+#include <unistd.h> 
+#include <string.h> 
+#include <errno.h> 
+#include <sys/types.h>
+#include <sys/wait.h>
 
 void cmdln_interpreter(char *buffer);
 void builtin_cmd(char **token, int t_space);
+void process_creation(char **token, int t_space);
+
 
 int main (int argc, char *argv[]){
 	char buf[255]; /*input buffer*/
@@ -18,8 +23,11 @@ int main (int argc, char *argv[]){
 	}
 	
 	// get user input command
-	printf("[3150 shell: %s]$ ", cwd);
-	fgets(buf, 255, stdin);
+	do{
+		printf("[3150 shell: %s]$ ", cwd);
+		fgets(buf, 255, stdin);
+	}while (strlen(buf)-1 == 0); //blank line
+	
 	buf[strlen(buf)-1] = '\0';
 	printf("[debug(main)]%s\n", buf);
 	
@@ -60,7 +68,7 @@ void cmdln_interpreter(char *buffer){
 	}
 	// else process creation
 	else {
-		printf("[debug(cmdln_interpreter)]process creation\n");
+		process_creation(token, t_space);
 	}
 
 	free(token);
@@ -68,7 +76,7 @@ void cmdln_interpreter(char *buffer){
 }
 
 void builtin_cmd(char **token, int t_space){
-	printf("[debug(builtin_cmd)]\n");	
+	printf("[debug]builtin_cmd\n");	
 
 	int i;
 	for (i=0; i<t_space+1; i++){
@@ -76,7 +84,30 @@ void builtin_cmd(char **token, int t_space){
 	}	
 }
 
-void process_creation(){
+void process_creation(char **token, int t_space){
+	printf("[debug]process_creation\n");
+	/*int i;
+	for (i=0; i<t_space+1; i++){
+		printf("[debug(process_creation)] token[%d] = %s\n", i, token[i]);
+	}
+	*/
+	pid_t child_pid;
+	int status;
 
+	if ((child_pid = fork())==0){
+		//printf("child pid: %d\n", child_pid);
+		// change environment variable temporarily
+		setenv("PATH","/bin:/usr/bin:.",1);
+		execvp(token[0], token);
+		if (errno == ENOENT){
+			printf("[%s]: command not found\n", token[0]);
+			exit(-1);
+		}else{
+			printf("[%s]: unknown error\n", token[0]);
+			exit(-1);
+		}
+	}
 
-}
+	waitpid(child_pid, &status, 0); //wait for child termination
+	printf("[debug(process_creation)]child terminated process\n");
+}	
