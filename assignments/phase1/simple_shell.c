@@ -9,34 +9,39 @@
 
 /*GLOBAL VARIABLES*/
 char cwd[PATH_MAX+1]; //current directory
+int terminated = 0;
 
 void cmdln_interpreter(char *buffer);
 int builtin_cmd(char **token, int t_space);
-void process_creation(char **token, int t_space);
+int process_creation(char **token, int t_space);
 
 int main (int argc, char *argv[]){
 	char buf[255]; /*input buffer*/
-	//char cwd[PATH_MAX+1]; /*current directory*/
 	
-	// get current directory
-	if (getcwd(cwd, PATH_MAX+1) == NULL){
-		printf("Error occurred\n");
-		return 0;
-	}
-	
-	// get user input command
 	do{
-		printf("[3150 shell: %s]$ ", cwd);
-		fgets(buf, 255, stdin);
-	}while (strlen(buf)-1 == 0); //blank line
+
+		// get current directory
+		if (getcwd(cwd, PATH_MAX+1) == NULL){
+			printf("Error: fail to get current directory\n");
+			return 0;
+		}
 	
-	buf[strlen(buf)-1] = '\0';
-	printf("[debug(main)]%s\n", buf);
+		// get user input command
+		do{
+			printf("[3150 shell: %s]$ ", cwd);
+			fgets(buf, 255, stdin);
+		}while (strlen(buf)-1 == 0); //blank line
+	
+		buf[strlen(buf)-1] = '\0';
+		printf("[debug(main)]%s\n", buf);
 	
 
-	cmdln_interpreter(buf);
+		cmdln_interpreter(buf);
+	}while(!terminated);
 
-	printf("[3150 shell: %s]$ ", cwd);
+
+	//printf("[3150 shell: %s]$ ", cwd);
+	printf("[debug(main)]terminated\n");
 
 	return 0;
 }
@@ -52,7 +57,7 @@ void cmdln_interpreter(char *buffer){
 		token = realloc(token, sizeof(char*) * ++t_space);
 		
 		if (token == NULL){
-			printf("[Error]realloc failed!\n");
+			printf("Error: realloc failed!\n");
 			exit(-1);
 		}
 		
@@ -67,7 +72,6 @@ void cmdln_interpreter(char *buffer){
 
 	// built-in cmd
 	if (strcmp(token[0], "cd")==0 || strcmp(token[0], "exit")==0){
-		printf("[debug(cmdln_interpreter)]built-in cmd %s\n", token[0]);
 		builtin_cmd(token, t_space);
 	}
 	// else process creation
@@ -82,12 +86,11 @@ void cmdln_interpreter(char *buffer){
 int builtin_cmd(char **token, int t_space){
 	printf("[debug]builtin_cmd\n");	
 
-	int i;
+	/*int i;
 	for (i=0; i<t_space+1; i++){
 		printf("[debug(builtin_cmd)] token[%d] = %s\n", i, token[i]);
-	}
+	}*/
 
-	printf("[debug(builtin_cmd)]number of argumnets %d\n", t_space-1);
 
 	if (strcmp(token[0], "cd")==0){
 		// # of arg = 1
@@ -111,24 +114,25 @@ int builtin_cmd(char **token, int t_space){
 			return 1;
 		}
 
-		exit(0);
+		//exit(0);
+		terminated = 1;
 	} 
 
 	return 0;
 }
 
-void process_creation(char **token, int t_space){
+int process_creation(char **token, int t_space){
 	printf("[debug]process_creation\n");
 	/*int i;
 	for (i=0; i<t_space+1; i++){
 		printf("[debug(process_creation)] token[%d] = %s\n", i, token[i]);
 	}
 	*/
-	pid_t child_pid;
+	pid_t cpid;
 	int status;
 
-	if ((child_pid = fork())==0){
-		//printf("child pid: %d\n", child_pid);
+	if ((cpid = fork())==0){
+		printf("[debug(process_creation)]get child pid: %d\n", getpid());
 		// change environment variable temporarily
 		setenv("PATH","/bin:/usr/bin:.",1);
 		execvp(token[0], token);
@@ -140,7 +144,11 @@ void process_creation(char **token, int t_space){
 			exit(-1);
 		}
 	}
+	
+	
+	pid_t wpid = waitpid(cpid, &status, 0); //wait for child termination
+	printf("[debug(process_creation)]parent pid: %d\n", getpid());
+	printf("[debug(process_creation)]waited child pid: %d\n", wpid);
 
-	waitpid(child_pid, &status, 0); //wait for child termination
-	printf("[debug(process_creation)]child terminated process\n");
+	return 0;
 }	
