@@ -6,19 +6,29 @@
 #include <errno.h> 
 #include <sys/types.h>
 #include <sys/wait.h>
+#include <signal.h>
 
 /*GLOBAL VARIABLES*/
 char cwd[PATH_MAX+1]; //current directory
 int terminated = 0;
 
-void cmdln_interpreter(char *buffer);
+int cmdln_interpreter(char *buffer);
 int builtin_cmd(char **token, int t_space);
 int process_creation(char **token, int t_space);
 
 int main (int argc, char *argv[]){
 	char buf[255]; /*input buffer*/
+	int blankln = 0;
+
+	signal(SIGINT, SIG_IGN);
+	signal(SIGTERM, SIG_IGN);
+	signal(SIGQUIT, SIG_IGN);
+	signal(SIGTSTP, SIG_IGN);
 	
 	do{
+		//initialize variables
+		memset(buf, '\0', 255);
+		memset(cwd, '\0', PATH_MAX+1);		
 
 		// get current directory
 		if (getcwd(cwd, PATH_MAX+1) == NULL){
@@ -29,24 +39,40 @@ int main (int argc, char *argv[]){
 		// get user input command
 		do{
 			printf("[3150 shell: %s]$ ", cwd);
-			fgets(buf, 255, stdin);
-		}while (strlen(buf)-1 == 0); //blank line
+			if (fgets(buf, 255, stdin) == NULL){
+				printf("[debug[main]EOF]\n");
+				terminated = 1;
+				break;
+			}
 	
-		buf[strlen(buf)-1] = '\0';
-		printf("[debug(main)]%s\n", buf);
-	
+			//blank line
+			if (buf[0] == '\n'){			
+				blankln = 1;
+			}else{
+				blankln = 0;
+				// remove trailing newline \n
+				buf[strlen(buf)-1] = '\0';
+			}
+		}while (blankln);
+		
+		printf("[debug(main)]input: %s\n", buf);
+		printf("[debug(main)]input len: %zu\n", strlen(buf));
 
 		cmdln_interpreter(buf);
 	}while(!terminated);
 
 
-	//printf("[3150 shell: %s]$ ", cwd);
 	printf("[debug(main)]terminated\n");
 
 	return 0;
 }
 
-void cmdln_interpreter(char *buffer){
+int cmdln_interpreter(char *buffer){
+	printf("[debug]cmdln_interpreter\n");
+	
+	if (terminated)
+		return 1;
+
 	// input tokenization
 	int t_space = 0;
 	char **token = NULL;
@@ -65,7 +91,6 @@ void cmdln_interpreter(char *buffer){
 		
 		p = strtok(NULL, " ");
 	}
-
 	// add extra one space for NULL required by execvp()
 	token = realloc(token, sizeof(char*) * (t_space+1));
 	token[t_space] = 0; 
@@ -80,7 +105,8 @@ void cmdln_interpreter(char *buffer){
 	}
 
 	free(token);
-
+	
+	return 0;
 }
 
 int builtin_cmd(char **token, int t_space){
@@ -90,7 +116,7 @@ int builtin_cmd(char **token, int t_space){
 	for (i=0; i<t_space+1; i++){
 		printf("[debug(builtin_cmd)] token[%d] = %s\n", i, token[i]);
 	}*/
-
+	char temp_cwd[PATH_MAX+1];
 
 	if (strcmp(token[0], "cd")==0){
 		// # of arg = 1
@@ -100,8 +126,8 @@ int builtin_cmd(char **token, int t_space){
 		}
 		
 		if (chdir(token[1])!=-1){
-			getcwd(cwd, PATH_MAX+1);
-			printf("[debug(builtin_cmd)]Now it is %s\n", cwd);	
+			getcwd(temp_cwd, PATH_MAX+1);
+			printf("[debug(builtin_cmd)]Now it is %s\n", temp_cwd);	
 		}else{
 			printf("%s: cannot change directory\n", token[1]);
 		}
@@ -132,7 +158,13 @@ int process_creation(char **token, int t_space){
 	int status;
 
 	if ((cpid = fork())==0){
-		printf("[debug(process_creation)]get child pid: %d\n", getpid());
+		
+		signal(SIGINT, SIG_DFL);
+		signal(SIGTERM, SIG_DFL);
+		signal(SIGQUIT, SIG_DFL);
+		signal(SIGTSTP, SIG_DFL);
+		
+		printf("[debug(process_creation)]child pid: %d\n", getpid());
 		// change environment variable temporarily
 		setenv("PATH","/bin:/usr/bin:.",1);
 		execvp(token[0], token);
