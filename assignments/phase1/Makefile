@@ -1,7 +1,7 @@
 CC=gcc
 CFLAGS=-Wall
 
-EXE=simple_shell
+EXE=shell
 
 all: ${EXE}
 
