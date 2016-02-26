@@ -7,6 +7,7 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <signal.h>
+#include <glob.h>
 
 /*GLOBAL VARIABLES*/
 char cwd[PATH_MAX+1]; //current directory
@@ -40,7 +41,7 @@ int main (int argc, char *argv[]){
 		do{
 			printf("[3150 shell: %s]$ ", cwd);
 			if (fgets(buf, 255, stdin) == NULL){
-				printf("[debug[main]EOF]\n");
+				//printf("[debug[main]EOF]\n");
 				terminated = 1;
 				break;
 			}
@@ -55,8 +56,8 @@ int main (int argc, char *argv[]){
 			}
 		}while (blankln);
 		
-		printf("[debug(main)]input: %s\n", buf);
-		printf("[debug(main)]input len: %zu\n", strlen(buf));
+		//printf("[debug(main)]input: %s\n", buf);
+		//printf("[debug(main)]input len: %zu\n", strlen(buf));
 
 		cmdln_interpreter(buf);
 	}while(!terminated);
@@ -68,7 +69,7 @@ int main (int argc, char *argv[]){
 }
 
 int cmdln_interpreter(char *buffer){
-	printf("[debug]cmdln_interpreter\n");
+	//printf("[debug]cmdln_interpreter\n");
 	
 	if (terminated)
 		return 1;
@@ -78,7 +79,7 @@ int cmdln_interpreter(char *buffer){
 	char **token = NULL;
 	char *p = strtok(buffer, " ");
 	while (p != NULL){
-		printf("[debug(cmdln_interpreter)]%s\n", p);
+		//printf("[debug(cmdln_interpreter)]%s\n", p);
 		
 		token = realloc(token, sizeof(char*) * ++t_space);
 		
@@ -149,13 +150,11 @@ int builtin_cmd(char **token, int t_space){
 
 int process_creation(char **token, int t_space){
 	printf("[debug]process_creation\n");
-	/*int i;
-	for (i=0; i<t_space+1; i++){
-		printf("[debug(process_creation)] token[%d] = %s\n", i, token[i]);
-	}
-	*/
+	
 	pid_t cpid;
 	int status;
+	glob_t globbuf;
+	int i;
 
 	if ((cpid = fork())==0){
 		
@@ -167,7 +166,32 @@ int process_creation(char **token, int t_space){
 		printf("[debug(process_creation)]child pid: %d\n", getpid());
 		// change environment variable temporarily
 		setenv("PATH","/bin:/usr/bin:.",1);
-		execvp(token[0], token);
+
+		if (t_space > 1){
+			// wildcard expansion
+			printf("[debug(process_creation)]wildcard expansion\n");
+			globbuf.gl_offs = 1;
+			for (i=1; i<t_space; i++){
+				printf("[debug(process_creation)]arg(%d) : %s\n", i, token[i]);
+				if (i>1){
+					glob(token[i], GLOB_DOOFFS | GLOB_NOCHECK | GLOB_APPEND, NULL, &globbuf);
+				}else{
+					if (glob(token[i], GLOB_DOOFFS | GLOB_NOCHECK, NULL, &globbuf) !=0){
+						printf("[debug]glob() error\n");
+					}
+
+				}
+		
+			}	
+		
+			globbuf.gl_pathv[0] = token[0];
+			printf("[debug(process_creation)]exec command\n");
+			printf("[debug(process_creation)]glob command: %s\n", globbuf.gl_pathv[0]);
+			execvp(globbuf.gl_pathv[0], globbuf.gl_pathv);
+		}else{
+			execvp(token[0], token);
+		}
+
 		if (errno == ENOENT){
 			printf("%s: command not found\n", token[0]);
 			exit(-1);
