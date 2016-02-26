@@ -19,7 +19,6 @@ int process_creation(char **token, int t_space);
 
 int main (int argc, char *argv[]){
 	char buf[255]; /*input buffer*/
-	int blankln = 0;
 
 	signal(SIGINT, SIG_IGN);
 	signal(SIGTERM, SIG_IGN);
@@ -38,23 +37,14 @@ int main (int argc, char *argv[]){
 		}
 	
 		// get user input command
-		do{
-			printf("[3150 shell: %s]$ ", cwd);
-			if (fgets(buf, 255, stdin) == NULL){
-				//printf("[debug[main]EOF]\n");
-				terminated = 1;
-				break;
-			}
+		printf("[3150 shell:%s]$ ", cwd);
+		if (fgets(buf, 255, stdin) == NULL){
+			//printf("[debug[main]EOF]\n");
+			terminated = 1;
+		}
 	
-			//blank line
-			if (buf[0] == '\n'){			
-				blankln = 1;
-			}else{
-				blankln = 0;
-				// remove trailing newline \n
-				buf[strlen(buf)-1] = '\0';
-			}
-		}while (blankln);
+		// remove trailing newline \n
+		buf[strlen(buf)-1] = '\0';
 		
 		//printf("[debug(main)]input: %s\n", buf);
 		//printf("[debug(main)]input len: %zu\n", strlen(buf));
@@ -63,7 +53,7 @@ int main (int argc, char *argv[]){
 	}while(!terminated);
 
 
-	printf("[debug(main)]terminated\n");
+	//printf("[debug(main)]terminated\n");
 
 	return 0;
 }
@@ -80,7 +70,18 @@ int cmdln_interpreter(char *buffer){
 	char *p = strtok(buffer, " ");
 	while (p != NULL){
 		//printf("[debug(cmdln_interpreter)]%s\n", p);
-		
+	
+		// syntax validation
+		char *c = p;
+		while (*c){
+			if (strchr("\t",*c) || *c == 62 || *c == 60 
+			|| *c == 124 || (t_space == 0 && *c == 42) 
+			|| *c == 33 || *c == 96 || *c == 39 || *c == 34 ){
+				return 1;
+			}
+			c++;
+		}
+
 		token = realloc(token, sizeof(char*) * ++t_space);
 		
 		if (token == NULL){
@@ -92,10 +93,15 @@ int cmdln_interpreter(char *buffer){
 		
 		p = strtok(NULL, " ");
 	}
+	
+	//detect space
+	if (t_space == 0)
+		return 1;
+
 	// add extra one space for NULL required by execvp()
 	token = realloc(token, sizeof(char*) * (t_space+1));
-	token[t_space] = 0; 
-
+	token[t_space] = 0; 	
+	
 	// built-in cmd
 	if (strcmp(token[0], "cd")==0 || strcmp(token[0], "exit")==0){
 		builtin_cmd(token, t_space);
@@ -111,13 +117,13 @@ int cmdln_interpreter(char *buffer){
 }
 
 int builtin_cmd(char **token, int t_space){
-	printf("[debug]builtin_cmd\n");	
+	//printf("[debug]builtin_cmd\n");	
 
 	/*int i;
 	for (i=0; i<t_space+1; i++){
 		printf("[debug(builtin_cmd)] token[%d] = %s\n", i, token[i]);
 	}*/
-	char temp_cwd[PATH_MAX+1];
+	//char temp_cwd[PATH_MAX+1];
 
 	if (strcmp(token[0], "cd")==0){
 		// # of arg = 1
@@ -127,8 +133,8 @@ int builtin_cmd(char **token, int t_space){
 		}
 		
 		if (chdir(token[1])!=-1){
-			getcwd(temp_cwd, PATH_MAX+1);
-			printf("[debug(builtin_cmd)]Now it is %s\n", temp_cwd);	
+			//getcwd(temp_cwd, PATH_MAX+1);
+			//printf("[debug(builtin_cmd)]Now it is %s\n", temp_cwd);	
 		}else{
 			printf("%s: cannot change directory\n", token[1]);
 		}
@@ -149,7 +155,7 @@ int builtin_cmd(char **token, int t_space){
 }
 
 int process_creation(char **token, int t_space){
-	printf("[debug]process_creation\n");
+	//printf("[debug]process_creation\n");
 	
 	pid_t cpid;
 	int status;
@@ -163,18 +169,20 @@ int process_creation(char **token, int t_space){
 		signal(SIGQUIT, SIG_DFL);
 		signal(SIGTSTP, SIG_DFL);
 		
-		printf("[debug(process_creation)]child pid: %d\n", getpid());
+		//printf("[debug(process_creation)]child pid: %d\n", getpid());
 		// change environment variable temporarily
 		setenv("PATH","/bin:/usr/bin:.",1);
-
+		
 		if (t_space > 1){
 			// wildcard expansion
-			printf("[debug(process_creation)]wildcard expansion\n");
+			//printf("[debug(process_creation)]wildcard expansion\n");
 			globbuf.gl_offs = 1;
 			for (i=1; i<t_space; i++){
-				printf("[debug(process_creation)]arg(%d) : %s\n", i, token[i]);
+				//printf("[debug(process_creation)]arg(%d) : %s\n", i, token[i]);
 				if (i>1){
-					glob(token[i], GLOB_DOOFFS | GLOB_NOCHECK | GLOB_APPEND, NULL, &globbuf);
+					if (glob(token[i], GLOB_DOOFFS | GLOB_NOCHECK | GLOB_APPEND, NULL, &globbuf) != 0){
+						printf("[debug]glob() error\n");
+					}
 				}else{
 					if (glob(token[i], GLOB_DOOFFS | GLOB_NOCHECK, NULL, &globbuf) !=0){
 						printf("[debug]glob() error\n");
@@ -185,8 +193,8 @@ int process_creation(char **token, int t_space){
 			}	
 		
 			globbuf.gl_pathv[0] = token[0];
-			printf("[debug(process_creation)]exec command\n");
-			printf("[debug(process_creation)]glob command: %s\n", globbuf.gl_pathv[0]);
+			//printf("[debug(process_creation)]exec command\n");
+			//printf("[debug(process_creation)]glob command: %s\n", globbuf.gl_pathv[0]);
 			execvp(globbuf.gl_pathv[0], globbuf.gl_pathv);
 		}else{
 			execvp(token[0], token);
@@ -201,10 +209,12 @@ int process_creation(char **token, int t_space){
 		}
 	}
 	
+	// wait for child termination
+	//pid_t wpid = waitpid(cpid, &status, 0);
+	waitpid(cpid, &status, 0); 
 	
-	pid_t wpid = waitpid(cpid, &status, 0); //wait for child termination
-	printf("[debug(process_creation)]parent pid: %d\n", getpid());
-	printf("[debug(process_creation)]waited child pid: %d\n", wpid);
+	//printf("[debug(process_creation)]parent pid: %d\n", getpid());
+	//printf("[debug(process_creation)]waited child pid: %d\n", wpid);
 
 	return 0;
 }	
