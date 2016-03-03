@@ -1,3 +1,11 @@
+/********************************/
+/*	Deliverable 1		*/
+/*Course Code	: CSCI3150	*/
+/*Name		: Lai Jia Xin   */		
+/*SID		: 1155030036    */
+/*Date		: 02-03-2016    */
+/********************************/
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <limits.h>
@@ -38,13 +46,17 @@ int main (int argc, char *argv[]){
 	
 		// get user input command
 		printf("[3150 shell:%s]$ ", cwd);
+		fflush(NULL);
 		if (fgets(buf, 255, stdin) == NULL){
 			//printf("[debug[main]EOF]\n");
 			terminated = 1;
 		}
-	
-		// remove trailing newline \n
-		buf[strlen(buf)-1] = '\0';
+		
+		
+		if (buf[strlen(buf)-1] == '\n'){	
+			// remove trailing newline \n
+			buf[strlen(buf)-1] = '\0';
+		}
 		
 		//printf("[debug(main)]input: %s\n", buf);
 		//printf("[debug(main)]input len: %zu\n", strlen(buf));
@@ -127,7 +139,7 @@ int builtin_cmd(char **token, int t_space){
 
 	if (strcmp(token[0], "cd")==0){
 		// # of arg = 1
-		if (t_space > 2){
+		if (t_space != 2){
 			printf("cd: wrong number of arguments\n");
 			return 1;
 		}
