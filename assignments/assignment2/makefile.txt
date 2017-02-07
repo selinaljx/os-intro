@@ -1,0 +1,5 @@
+CC=gcc
+
+EXE=test
+
+all: ${EXE}
